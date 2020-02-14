@@ -56,11 +56,11 @@ SYSTEM1 = 1
 SYSTEM2 = 2
 
 SERIAL_INIT_ARGS = {
-    'baudrate': BAUD_RATE,
-    'stopbits': serial.STOPBITS_ONE,
-    'bytesize': serial.EIGHTBITS,
-    'parity': serial.PARITY_NONE,
-    'timeout': TIMEOUT,
+    'baudrate':      BAUD_RATE,
+    'stopbits':      serial.STOPBITS_ONE,
+    'bytesize':      serial.EIGHTBITS,
+    'parity':        serial.PARITY_NONE,
+    'timeout':       TIMEOUT,
     'write_timeout': TIMEOUT
 }
 
@@ -108,6 +108,9 @@ class RadioRAControllerBase(object):
         for zone in self.zones:
             print(zone)
         raise NotImplemented()
+
+    def update_zones(self, zone):
+        return False
 
     @property
     def is_bridged(self):

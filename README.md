@@ -22,11 +22,18 @@ if radiora.is_on(zone_id):
 
 #### Asynchronous
 
-```python
-import pyradiora.classic
+With the `asyncio` version, all methods of the RadioRA Classic controller are coroutines:
 
-radiora = get_async_radiora_controller('/dev/ttyUSB0', event_loop)
-radiora.turn_on(zone_id)
+```python
+import asyncio
+from pyradiora.classic import get_async_radiora_controller
+
+async def main(loop):
+      radiora = await get_async_radiora_controller('/dev/ttyUSB0', loop)
+      await radiora.turn_on(zone_id)
+
+loop = asyncio.get_event_loop()
+loop.run_until_complete(main(loop))
 ```
 
 ## See Also
