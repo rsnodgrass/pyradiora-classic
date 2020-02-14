@@ -32,14 +32,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-setup(name='pyradiora_classic',
+setup(name='pyradiora.classic',
       version=VERSION,
       description='Python API for RS232 communication to Lutron RadioRA Classic controllers',
-      url='https://github.com/rsnodgrass/pyradiora_classic',
+      url='https://github.com/rsnodgrass/pyradiora-classic',
       author='Ryan Snodgrass',
       author_email='rsnodgrass@gmail.com',
       license='Apache2.0',
       install_requires=['pyserial>=3.4','pyserial-asyncio>=0.4'],
-      packages=['pyradiora_classic'],
+      packages=['pyradiora.classic'],
       classifiers=['Development Status :: 4 - Beta'],
       zip_safe=True)
