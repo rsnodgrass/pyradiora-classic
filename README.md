@@ -3,8 +3,6 @@
 
 ## Usage
 
-For Monoprice and Dayton Audio 6-zone amplifiers:
-
 ```python
 import pyradiora.classic
 
