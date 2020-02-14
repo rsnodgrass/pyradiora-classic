@@ -3,6 +3,8 @@
 
 ## Usage
 
+#### Synchronous
+
 ```python
 import pyradiora.classic
 
@@ -14,6 +16,18 @@ radiora.set_dimmer_level(zone_id, level)
 
 radiora.flash_on()
 radiora.flash_off()
+
+if radiora.is_on(zone_id):
+   radiora.turn_off(zone_id)
+```
+
+#### Asynchronous
+
+```python
+import pyradiora.classic
+
+radiora = get_async_radiora_controller('/dev/ttyUSB0', event_loop)
+radiora.turn_on(zone_id)
 ```
 
 ## See Also
