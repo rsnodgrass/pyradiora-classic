@@ -6,13 +6,16 @@
 For Monoprice and Dayton Audio 6-zone amplifiers:
 
 ```python
-from pyra import RadioRA
+import pyradiora.classic
 
-radiora = PyRadioRA('/dev/ttyUSB0')
+radiora = get_sync_radiora_controller('/dev/ttyUSB0')
 
-lights = radiora.lights
+radiora.turn_all_on()
+radiora.turn_on(zone_id)
+radiora.set_dimmer_level(zone_id, level)
 
-# FIXME: lights, dimmers, current status
+radiora.flash_on()
+radiora.flash_off()
 ```
 
 ## See Also
