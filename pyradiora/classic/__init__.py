@@ -52,6 +52,9 @@ STATE_ON = 'ON'
 STATE_OFF = 'OFF'
 STATE_CHANGE = 'CHG'
 
+SYSTEM1 = 1
+SYSTEM2 = 2
+
 SERIAL_INIT_ARGS = {
     'baudrate': BAUD_RATE,
     'stopbits': serial.STOPBITS_ONE,
@@ -84,16 +87,16 @@ class RadioRAControllerBase(object):
     def flash_off(self):
         raise NotImplemented()
 
-    def switch_on(self, zone: int):
+    def switch_on(self, zone: int, system = SYSTEM1):
         raise NotImplemented()
 
-    def switch_off(self, zone: int):
+    def switch_off(self, zone: int, system = SYSTEM1):
         raise NotImplemented()
 
-    def is_zone_on(self, zone: int):
+    def is_zone_on(self, zone: int, system = SYSTEM1):
         raise NotImplemented()
 
-    def set_dimmer_level(self, zone: int):
+    def set_dimmer_level(self, zone: int, system = SYSTEM1):
         raise NotImplemented()
 
     def update(self):
@@ -108,7 +111,7 @@ class RadioRAControllerBase(object):
 
     @property
     def is_bridged(self):
-        return False # this does not support RadioRA Classic/Chronos Bridged Systems
+        return False # this currently does not support RadioRA Classic/Chronos Bridged Systems
 
     def _parse_response(self, response: str):
         """Parse response from the RS232 bridge into a dictionary"""
@@ -150,13 +153,7 @@ def get_radiora_controller(tty: str):
             self._port.write_timeout = TIMEOUT
             self._port.open()
 
-            # FIXME: must test version to ensure RadioRA Classic bridge
-            self._version = self.sendCommand('version')
-        
-        @property
-        @synchronized
-        def version(self):
-            return self._version
+            LOG.debug("RadioRA RS232 controller version = {}", self.sendCommand('version'))
 
         def _write(self, request):
             # clear
@@ -216,20 +213,20 @@ def get_radiora_controller(tty: str):
             self.sendCommand('flash_off')
 
         @synchronized
-        def set_dimmer_level(self, zone: int, level: int):
+        def set_dimmer_level(self, zone: int, level: int, system = SYSTEM1):
             level = int(max(0, min(level, MAX_DIMMER_LEVEL)))
             if zone < 1 or zone > MAX_ZONES:
                 raise ValueError(f"Invalid zone {zone} specified")
             self.sendCommand('set_dimmer_level', args = { 'zone': zone, 'level': level })
 
         @synchronized
-        def switch_on(self, zone: int):
+        def switch_on(self, zone: int, system = SYSTEM1):
             if zone < 1 or zone > MAX_ZONES:
                 raise ValueError(f"Invalid zone {zone} specified")
             self.sendCommand('switch_on', args = { 'zone': zone })
 
         @synchronized
-        def switch_off(self, zone: int):
+        def switch_off(self, zone: int, system = SYSTEM1):
             if zone < 1 or zone > MAX_ZONES:
                 raise ValueError(f"Invalid zone {zone} specified")
             self.sendCommand('switch_off', args = { 'zone': zone })
@@ -261,6 +258,8 @@ def get_async_radiora_controller(tty, loop):
         def __init__(self, tty: str, protocol):
             super.__init__(tty)
             self._protocol = protocol
+
+            LOG.debug("RadioRA RS232 controller version = {}", self.sendCommand('version'))
         
         @locked_coroutine
         @asyncio.coroutine
@@ -289,7 +288,7 @@ def get_async_radiora_controller(tty, loop):
 
         @locked_coroutine
         @asyncio.coroutine
-        def set_dimmer_level(self, zone: int, level: int):
+        def set_dimmer_level(self, zone: int, level: int, system = SYSTEM1):
             level = int(max(0, min(level, MAX_DIMMER_LEVEL)))
             if zone < 1 or zone > MAX_ZONES:
                 raise ValueError(f"Invalid zone {zone} specified")
@@ -297,14 +296,14 @@ def get_async_radiora_controller(tty, loop):
 
         @locked_coroutine
         @asyncio.coroutine
-        def switch_on(self, zone: int):
+        def switch_on(self, zone: int, system = SYSTEM1):
             if zone < 1 or zone > MAX_ZONES:
                 raise ValueError(f"Invalid zone {zone} specified")
             yield from self.sendCommand('switch_on', args = { 'zone': zone })
 
         @locked_coroutine
         @asyncio.coroutine
-        def switch_off(self, zone: int):
+        def switch_off(self, zone: int, system = SYSTEM1):
             if zone < 1 or zone > MAX_ZONES:
                 raise ValueError(f"Invalid zone {zone} specified")
             yield from self.sendCommand('switch_off', args = { 'zone': zone })
@@ -315,10 +314,12 @@ def get_async_radiora_controller(tty, loop):
             # foreach zone, apply JSON config
             raise NotImplemented()
 
+        @locked_coroutine
+        @asyncio.coroutine
         def sendCommand(self, command, args = {}):
             request = RS232_COMMANDS[command].format(**args)
-            self._protocol.send(request)
-            response = self._protocol.read()
+            yield from self._protocol.send(request)
+            response = yield from self._protocol.read()
             return self._parse_response(response)
 
     class RadioRAProtocolAsync(asyncio.Protocol):

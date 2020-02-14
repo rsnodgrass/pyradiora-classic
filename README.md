@@ -1,6 +1,5 @@
 # Python interface for Lutron RadioRA Classic RS232 bridge
 
-
 ## Usage
 
 #### Synchronous
@@ -8,7 +7,7 @@
 ```python
 import pyradiora.classic
 
-radiora = get_sync_radiora_controller('/dev/ttyUSB0')
+radiora = get_radiora_controller('/dev/ttyUSB0')
 
 radiora.turn_all_on()
 radiora.turn_on(zone_id)
