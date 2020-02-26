@@ -266,63 +266,56 @@ def get_async_radiora_controller(tty, loop):
         
         @locked_coroutine
         @asyncio.coroutine
-        def update(self):
+        async def update(self):
             return # FIXME
 
         @locked_coroutine
         @asyncio.coroutine
-        def switch_all_on(self):
+        async def switch_all_on(self):
             yield from self.sendCommand('power_on')
 
         @locked_coroutine
         @asyncio.coroutine
-        def switch_all_off(self):
-            yield from self.sendCommand('power_off')
+        async def switch_all_off(self):
+            await self.sendCommand('power_off')
 
         @locked_coroutine
-        @asyncio.coroutine
-        def flash_on(self):
-            yield from self.sendCommand('flash_on')
+        async def flash_on(self):
+            await self.sendCommand('flash_on')
 
         @locked_coroutine
-        @asyncio.coroutine
-        def flash_off(self):
-            yield from self.sendCommand('flash_off')
+        async def flash_off(self):
+            await self.sendCommand('flash_off')
 
         @locked_coroutine
-        @asyncio.coroutine
-        def set_dimmer_level(self, zone: int, level: int, system = SYSTEM1):
+        async def set_dimmer_level(self, zone: int, level: int, system = SYSTEM1):
             level = int(max(0, min(level, MAX_DIMMER_LEVEL)))
             if zone < 1 or zone > MAX_ZONES:
                 raise ValueError(f"Invalid zone {zone} specified")
-            yield from self.sendCommand('set_dimmer_level', args = { 'zone': zone, 'level': level })
+            await self.sendCommand('set_dimmer_level', args = { 'zone': zone, 'level': level })
 
         @locked_coroutine
-        @asyncio.coroutine
-        def switch_on(self, zone: int, system = SYSTEM1):
+        async def switch_on(self, zone: int, system = SYSTEM1):
             if zone < 1 or zone > MAX_ZONES:
                 raise ValueError(f"Invalid zone {zone} specified")
-            yield from self.sendCommand('switch_on', args = { 'zone': zone })
+            await self.sendCommand('switch_on', args = { 'zone': zone })
 
         @locked_coroutine
-        @asyncio.coroutine
-        def switch_off(self, zone: int, system = SYSTEM1):
+        async def switch_off(self, zone: int, system = SYSTEM1):
             if zone < 1 or zone > MAX_ZONES:
                 raise ValueError(f"Invalid zone {zone} specified")
-            yield from self.sendCommand('switch_off', args = { 'zone': zone })
+            await self.sendCommand('switch_off', args = { 'zone': zone })
 
         @locked_coroutine
-        @asyncio.coroutine
-        def apply_zone_config(self, json: str):
+        async def apply_zone_config(self, json: str):
             # foreach zone, apply JSON config
             raise NotImplemented()
 
         @locked_coroutine
-        @asyncio.coroutine
-        def sendCommand(self, command, args = {}):
+        async def sendCommand(self, command, args = {}):
             request = RS232_COMMANDS[command].format(**args)
-            yield from self._protocol.send(request)
-            response = yield from self._protocol.read()
+            await self._protocol.send(request)
+            response = await self._protocol.read()
             return self._parse_response(response)
 
     class RadioRAProtocolAsync(asyncio.Protocol):
@@ -342,12 +335,11 @@ def get_async_radiora_controller(tty, loop):
         def data_received(self, data):
             asyncio.ensure_future(self.q.put(data), loop=self._loop)
 
-        @asyncio.coroutine
-        def send(self, request: bytes, skip=0):
-            yield from self._connected.wait()
+        async def send(self, request: bytes, skip=0):
+            await self._connected.wait()
             result = bytearray()
             # Only one transaction at a time
-            with (yield from self._lock):
+            with (await self._lock):
                 self._transport.serial.reset_output_buffer()
                 self._transport.serial.reset_input_buffer()
                 while not self.q.empty():
@@ -355,7 +347,7 @@ def get_async_radiora_controller(tty, loop):
                 self._transport.write(request)
                 try:
                     while True:
-                        result += yield from asyncio.wait_for(self.q.get(), TIMEOUT, loop=self._loop)
+                        result += await asyncio.wait_for(self.q.get(), TIMEOUT, loop=self._loop)
                         if len(result) > skip and result[-LEN_EOL:] == EOL:
                             ret = bytes(result)
                             LOG.debug('Received "%s"', ret)
@@ -364,7 +356,7 @@ def get_async_radiora_controller(tty, loop):
                     LOG.error("Timeout during receiving response for command '%s', received='%s'", request, result)
                     raise
 
-    _, protocol = yield from create_serial_connection(loop,
+    _, protocol = await create_serial_connection(loop,
                                                       functools.partial(RadioRAProtocolAsync, loop),
                                                       tty,
                                                       **SERIAL_INIT_ARGS)
