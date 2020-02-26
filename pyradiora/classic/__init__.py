@@ -135,15 +135,13 @@ class RadioRAControllerBase(object):
         command = results[0]
         data['command'] = command
 
-        LOG.warning(RS232_RESPONSES[command])
         fields = RS232_RESPONSES[command].split(',')
-        LOG.warning(fields)
-        LOG.warning(results)
-
         for i in range(len(fields)):
             if i > 0 and i < len(results):
                 field = fields[i].lstrip('{').rstrip('}')
-                data[field] = results[i]
+                data[field] = results[i].rstrip(' ')
+
+        LOG.warning(f"Received {data}")
         return data
 
 def get_radiora_controller(tty: str):
