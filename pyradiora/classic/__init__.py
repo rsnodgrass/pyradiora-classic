@@ -149,14 +149,14 @@ def get_radiora_controller(tty: str):
         :return: synchronous implementation of amplifier control interface
         """
         def __init__(self, tty: str):
-            super.__init(tty)
+            super().__init__(tty)
 
             self._port = serial.serial_for_url(tty, do_not_open=True, **SERIAL_INIT_ARGS)
             self._port.timeout = TIMEOUT
             self._port.write_timeout = TIMEOUT
             self._port.open()
 
-            LOG.debug("RadioRA RS232 controller version = {}", self.sendCommand('version'))
+#            LOG.debug("RadioRA RS232 controller version = {}", self.sendCommand('version'))
 
         def _write(self, request):
             # clear
@@ -359,8 +359,6 @@ def get_async_radiora_controller(tty, loop):
                     LOG.error("Timeout during receiving response for command '%s', received='%s'", request, result)
                     raise
 
-    _, protocol = await create_serial_connection(loop,
-                                                      functools.partial(RadioRAProtocolAsync, loop),
-                                                      tty,
-                                                      **SERIAL_INIT_ARGS)
+    factory = functools.partial(RadioRAProtocolAsync, loop)
+    _, protocol = yield from create_serial_connection(loop, factory, tty, **SERIAL_INIT_ARGS)
     return RadioRAControllerAsync(tty, protocol)
