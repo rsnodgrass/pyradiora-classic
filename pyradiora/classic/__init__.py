@@ -23,6 +23,9 @@ BAUD_RATE = 9600
 
 MAX_ZONES = 32
 MAX_DIMMER_LEVEL = 100
+MAX_COMMAND_LEN = 22
+
+ENCODING = 'ascii'
 
 RS232_COMMANDS = {
     'power_on':          'BP,16,ON',
@@ -32,7 +35,8 @@ RS232_COMMANDS = {
     'switch_on':         'SSL,{zone},ON',       # SSL,<Zone Number>,<State>(,<Delay Time>){(,<System>)}
     'switch_off':        'SSL,{zone},OFF',
     'set_dimmer':        'SDL,{zone},{level}',  # SDL,<Zone Number>,<Dimmer Level>(,<Fade Time>){(,<System)}
-    'zone_map':          'ZMPI',
+    'zone_map':          'ZMP,{zone_states}',
+    'zone_map_inquiry':  'ZMPI',
     'zone_status':       'ZSI',
     'version':           'VERI',
     'monitor_zones_on':  'LZCMON',
@@ -64,6 +68,9 @@ SERIAL_INIT_ARGS = {
     'write_timeout': TIMEOUT
 }
 
+EOL = b"\r"
+LEN_EOL = 1
+
 class RadioRAControllerBase(object):
     """Base class for interacting with a RadioRA Classic RS232 controller"""
 
@@ -74,6 +81,9 @@ class RadioRAControllerBase(object):
 
     def zones(self):
         return self._zones
+
+    def zone_status(self):
+        raise NotImplemented()
 
     def switch_all_on(self):
         raise NotImplemented()
@@ -119,13 +129,19 @@ class RadioRAControllerBase(object):
     def _parse_response(self, response: str):
         """Parse response from the RS232 bridge into a dictionary"""
         data = {}
+        LOG.warning(f"Parsing {response}")
+
         results = response.split(',')
         command = results[0]
         data['command'] = command
 
+        LOG.warning(RS232_RESPONSES[command])
         fields = RS232_RESPONSES[command].split(',')
+        LOG.warning(fields)
+        LOG.warning(results)
+
         for i in range(len(fields)):
-            if i > 0:
+            if i > 0 and i < len(results):
                 field = fields[i].lstrip('{').rstrip('}')
                 data[field] = results[i]
         return data
@@ -163,12 +179,12 @@ def get_radiora_controller(tty: str):
             self._port.reset_output_buffer()
             self._port.reset_input_buffer()
 
-            LOG.debug(f"Sending '{request}'")
+            LOG.warning(f"Sending: {request}")
             self._port.write(request)
             self._port.flush()
             return
     
-        def _read(self):
+        def _read(self, skip=0):
             result = bytearray()
             while True:
                 c = self._port.read(1)
@@ -177,14 +193,15 @@ def get_radiora_controller(tty: str):
                             'Connection timed out! Last received bytes {}'.format([hex(a) for a in result]))
                 result += c
                 if len(result) > skip and result[-LEN_EOL:] == EOL:
-                     break
+                    result = result[:-LEN_EOL] # strip off end of line
+                    break
 
-            ret = bytes(result)
-            LOG.debug(f"Received {ret}")
-            return ret.decode('ascii')
+            ret = bytes(result).decode(ENCODING)
+            LOG.debug(f"Received: {ret}")
+            return ret
 
         def sendCommand(self, command: str, args = {}):
-            request = RS232_COMMANDS[command].format(**args)
+            request = bytes(RS232_COMMANDS[command].format(**args), ENCODING) + EOL
             self._write(request)
             response = self._read()
             return self._parse_response(response)
@@ -194,10 +211,14 @@ def get_radiora_controller(tty: str):
             # NOTE: ZMP always returns state for all 32 zones, PLUS if it is a bridged system
             # it will return two sets, with ",S1" and ",S2" at the end of the result
             # this does not support bridged systems currently
-            result = self._serial.sendCommand('zone_status')
+            result = self._endCommand('zone_status')
 
             zone_states = result.split(',')
             # FIXME: iterate zones
+
+        @synchronized
+        def zone_status(self):
+            self.sendCommand('zone_map_inquiry')
 
         @synchronized
         def switch_all_on(self):
@@ -236,8 +257,7 @@ def get_radiora_controller(tty: str):
 
     return RadioRAControllerSync(tty)
 
-@asyncio.coroutine
-def get_async_radiora_controller(tty, loop):
+async def get_async_radiora_controller(tty, loop):
     """Get asynchronous RadioRA Classic controller
     :param tty: serial port, i.e. '/dev/ttyUSB0'
     :param loop: event loop
@@ -246,8 +266,7 @@ def get_async_radiora_controller(tty, loop):
 
     lock = asyncio.Lock()
 
-    def locked_coroutine(coro):
-        @asyncio.coroutine
+    async def locked_coroutine(coro):
         @wraps(coro)
         def wrapper(*args, **kwargs):
             with (yield from lock):
@@ -262,7 +281,7 @@ def get_async_radiora_controller(tty, loop):
             super.__init__(tty)
             self._protocol = protocol
 
-            LOG.debug("RadioRA RS232 controller version = {}", self.sendCommand('version'))
+#            LOG.debug("RadioRA RS232 controller version = {}", self.sendCommand('version'))
         
         @locked_coroutine
         async def update(self):
@@ -354,11 +373,11 @@ def get_async_radiora_controller(tty, loop):
                         if len(result) > skip and result[-LEN_EOL:] == EOL:
                             ret = bytes(result)
                             LOG.debug('Received "%s"', ret)
-                            return ret.decode('ascii')
+                            return ret.decode(ENCODING)
                 except asyncio.TimeoutError:
                     LOG.error("Timeout during receiving response for command '%s', received='%s'", request, result)
                     raise
 
     factory = functools.partial(RadioRAProtocolAsync, loop)
-    _, protocol = yield from create_serial_connection(loop, factory, tty, **SERIAL_INIT_ARGS)
+    _, protocol = await create_serial_connection(loop, factory, tty, **SERIAL_INIT_ARGS)
     return RadioRAControllerAsync(tty, protocol)
