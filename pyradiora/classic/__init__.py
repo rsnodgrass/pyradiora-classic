@@ -265,17 +265,14 @@ def get_async_radiora_controller(tty, loop):
             LOG.debug("RadioRA RS232 controller version = {}", self.sendCommand('version'))
         
         @locked_coroutine
-        @asyncio.coroutine
         async def update(self):
             return # FIXME
 
         @locked_coroutine
-        @asyncio.coroutine
         async def switch_all_on(self):
-            yield from self.sendCommand('power_on')
+            await self.sendCommand('power_on')
 
         @locked_coroutine
-        @asyncio.coroutine
         async def switch_all_off(self):
             await self.sendCommand('power_off')
 
@@ -338,13 +335,19 @@ def get_async_radiora_controller(tty, loop):
         async def send(self, request: bytes, skip=0):
             await self._connected.wait()
             result = bytearray()
+
             # Only one transaction at a time
             with (await self._lock):
+                # send/receive on command/response at a time, so clear out any pending
                 self._transport.serial.reset_output_buffer()
                 self._transport.serial.reset_input_buffer()
                 while not self.q.empty():
                     self.q.get_nowait()
+
+                # send command
                 self._transport.write(request)
+
+                # read response
                 try:
                     while True:
                         result += await asyncio.wait_for(self.q.get(), TIMEOUT, loop=self._loop)
