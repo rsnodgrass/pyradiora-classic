@@ -54,6 +54,7 @@ RS232_RESPONSES = {
     'LZC': 'LZC,{zone},{state},{system}',
     'ZMP': 'ZMP,{states},{system}',                           # ZMP,11001011001011001011001011001000,S1
     'MBP': 'MBP,{master_control},{button},{state},{system}',
+    '!':   '!'
 }
 
 STATE_ON = 'ON'
@@ -81,10 +82,7 @@ class RadioRAControllerBase(object):
     def __init__(self, tty: str):
         LOG.debug(f"Connecting to RadioRA Classic RS232 bridge at {tty}")
         self._tty = tty
-        self._zones = []
-
-    def zones(self):
-        return self._zones
+        self._cached_zone_status = None
 
     def switch_all_on(self):
         raise NotImplemented()
@@ -104,9 +102,6 @@ class RadioRAControllerBase(object):
     def switch_off(self, zone: int, system = SYSTEM1):
         raise NotImplemented()
 
-    def is_zone_on(self, zone: int, system = SYSTEM1):
-        raise NotImplemented()
-
     def set_dimmer_level(self, zone: int, system = SYSTEM1):
         raise NotImplemented()
 
@@ -114,28 +109,44 @@ class RadioRAControllerBase(object):
         """Update any cached state by querying the controller for its current status"""
         raise NotImplemented()
 
-    def _apply_zone_config(self, json: str):
-        # foreach zone, apply JSON config
-        for zone in self.zones:
-            print(zone)
+    def zone_status(self) -> dict:
         raise NotImplemented()
 
-    def update_zones(self, zone):
-        return False
+    def _handle_zone_status(self, data) -> dict:
+        if 'system' in data:
+            LOG.warning("The second system in bridged RadioRA Classic systems are not supported, ignoring!")
 
-    def zone_status(self, zone: int, system = SYSTEM1):
+        self._cached_zone_status = { SYSTEM1: data }
+        return self._cached_zone_status
+
+    def restore_zone_status(self, status: dict):
+        raise NotImplemented()
+
+    def _update_state(self):
+        """Update any cached state by querying the controller for its current status"""
+        # NOTE: ZMP always returns state for all 32 zones, PLUS if it is a bridged system
+        # it will return two sets, with ",S1" and ",S2" at the end of the result
+        # this does not support bridged systems currently
+        result = self.sendCommand('zone_status')
+        self._zone_status = result # FIXME
+
+    def is_zone_on(self, zone: int, system = SYSTEM1):
         """
         returns 0 if OFF, 1 if ON, and None if Unknown
+        (based on previously cached data; call update() first to get current values)
         """
         raise NotImplemented()
 
-    def _handle_zone_status(self, zone, system, data):
-        if system == SYSTEM2 and 'system' in data:
+    def _handle_is_zone_on(self, zone: int, system = SYSTEM1):
+        if system == SYSTEM2:
             LOG.warning("The second system in bridged RadioRA Classic systems are not supported, ignoring!")
             return None
 
-        if data['states']:
-            status = data['states'][zone]
+        zone_data = self._cached_zone_status.get(system)
+        current_state = zone_data.get('states')
+
+        if current_state:
+            status = current_state[zone]
             if status == UNKNOWN_FLAG:
                 return None
             else:
@@ -169,8 +180,10 @@ class RadioRAControllerBase(object):
                 field = fields[i].lstrip('{').rstrip('}')
                 data[field] = results[i].rstrip(' ')
 
-        LOG.warning(f"Received: {data}")
+        LOG.warning(f"Parsed response: {data}")
         return data
+
+
 
 def get_radiora_controller(tty: str):
     """Get synchronous RadioRA Classic controller"""
@@ -232,21 +245,6 @@ def get_radiora_controller(tty: str):
             response = self._read()
             return self._parse_response(response)
 
-        def update(self):
-            """Update any cached state by querying the controller for its current status"""
-            # NOTE: ZMP always returns state for all 32 zones, PLUS if it is a bridged system
-            # it will return two sets, with ",S1" and ",S2" at the end of the result
-            # this does not support bridged systems currently
-            result = self._endCommand('zone_status')
-
-            zone_states = result.split(',')
-            # FIXME: iterate zones
-
-        @synchronized
-        def zone_status(self, zone: int, system = SYSTEM1):
-            data = self.sendCommand('zone_map_inquiry')
-            return self._handle_zone_status(zone, system, data)
-
         @synchronized
         def switch_all_on(self):
             self.sendCommand('power_on')
@@ -282,6 +280,22 @@ def get_radiora_controller(tty: str):
                 raise ValueError(f"Invalid zone {zone} specified")
             self.sendCommand('switch_off', args = { 'zone': zone })
 
+        @synchronized
+        def zone_status(self) -> dict:
+            data = await self.sendCommand('zone_status')
+            return self._handle_zone_status(data)
+
+        @synchronized
+        def update(self):
+            await self.zone_status()
+            return
+
+        @synchronized
+        def is_zone_on(self, zone: int, system = SYSTEM1):
+            if not self._cached_zone_status:
+                self.update()
+            return self._handle_is_zone_on(zone, system)
+
     return RadioRAControllerSync(tty)
 
 async def get_async_radiora_controller(tty, loop):
@@ -309,13 +323,11 @@ async def get_async_radiora_controller(tty, loop):
             self._protocol = protocol
         
         @locked_coroutine
-        def zone_status(self, zone: int, system = SYSTEM1):
-            data = self.sendCommand('zone_map_inquiry')
-            return self._handle_zone_status(zone, system, data)
-
-        @locked_coroutine
-        async def update(self):
-            return # FIXME
+        async def sendCommand(self, command, args = {}):
+            request = RS232_COMMANDS[command].format(**args) + EOL
+            await self._protocol.send(request)
+            response = await self._protocol.read()
+            return self._parse_response(response)
 
         @locked_coroutine
         async def switch_all_on(self):
@@ -353,16 +365,20 @@ async def get_async_radiora_controller(tty, loop):
             await self.sendCommand('switch_off', args = { 'zone': zone })
 
         @locked_coroutine
-        async def apply_zone_config(self, json: str):
-            # foreach zone, apply JSON config
-            raise NotImplemented()
+        async def zone_status(self) -> dict:
+            data = await self.sendCommand('zone_status')
+            return self._handle_zone_status(data)
 
         @locked_coroutine
-        async def sendCommand(self, command, args = {}):
-            request = RS232_COMMANDS[command].format(**args) + EOL
-            await self._protocol.send(request)
-            response = await self._protocol.read()
-            return self._parse_response(response)
+        async def update(self):
+            await self.zone_status()
+            return
+
+        @locked_coroutine
+        async def is_zone_on(self, zone: int, system = SYSTEM1):
+            if not self._cached_zone_status:
+                await self.update()
+            return self._handle_is_zone_on(zone, system)
 
     class RadioRAProtocolAsync(asyncio.Protocol):
         def __init__(self, loop):
