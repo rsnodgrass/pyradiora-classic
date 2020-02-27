@@ -454,7 +454,7 @@ async def get_async_radiora_controller(tty, loop):
                 self._transport.write(request)
 
                 # read response
-                return await self.read()
+                return await self.read(request)
 
 
     factory = functools.partial(RadioRAProtocolAsync, loop)
