@@ -282,8 +282,18 @@ def get_radiora_controller(tty: str):
 
         @synchronized
         def zone_status(self) -> dict:
-            data = self.sendCommand('zone_status')
-            return self._handle_zone_status(data)
+            response = self.sendCommand('zone_map_inquiry')
+
+            data = {}
+            data[SYSTEM1] = response
+
+            # handle multiple bridged zones
+            if 'system' in response:
+                response = self._read() # read second bridged status line
+                data_s2 = self._parse_response(response)
+                data[SYSTEM2] = data_s2
+
+            self._handle_zone_status(data)
 
         @synchronized
         def update(self):
@@ -366,8 +376,18 @@ async def get_async_radiora_controller(tty, loop):
 
         @locked_coroutine
         async def zone_status(self) -> dict:
-            data = await self.sendCommand('zone_status')
-            return self._handle_zone_status(data)
+            response = await self.sendCommand('zone_map_inquiry')
+
+            data = {}
+            data[SYSTEM1] = response
+
+            # handle multiple bridged zones
+            if 'system' in response:
+                response = await self._protocol.read() # read second bridged status line
+                data_s2 = self._parse_response(response)
+                data[SYSTEM2] = data_s2
+
+            self._handle_zone_status(data)
 
         @locked_coroutine
         async def update(self):
@@ -397,6 +417,18 @@ async def get_async_radiora_controller(tty, loop):
         def data_received(self, data):
             asyncio.ensure_future(self.q.put(data), loop=self._loop)
 
+        async def read(self, request: bytes, skip=0):
+            # read response
+            try:
+                while True:
+                    result += await asyncio.wait_for(self.q.get(), TIMEOUT, loop=self._loop)
+                    if len(result) > skip and result[-LEN_EOL:] == EOL:
+                        ret = bytes(result)
+                        LOG.debug('Received "%s"', ret)
+                        return ret.decode(ENCODING)
+            except asyncio.TimeoutError:
+                LOG.error("Timeout during receiving response for command '%s', received='%s'", request, result)
+
         async def send(self, request: bytes, skip=0):
             await self._connected.wait()
             result = bytearray()
@@ -413,16 +445,8 @@ async def get_async_radiora_controller(tty, loop):
                 self._transport.write(request)
 
                 # read response
-                try:
-                    while True:
-                        result += await asyncio.wait_for(self.q.get(), TIMEOUT, loop=self._loop)
-                        if len(result) > skip and result[-LEN_EOL:] == EOL:
-                            ret = bytes(result)
-                            LOG.debug('Received "%s"', ret)
-                            return ret.decode(ENCODING)
-                except asyncio.TimeoutError:
-                    LOG.error("Timeout during receiving response for command '%s', received='%s'", request, result)
-                    raise
+                return await self.read()
+
 
     factory = functools.partial(RadioRAProtocolAsync, loop)
     _, protocol = await create_serial_connection(loop, factory, tty, **SERIAL_INIT_ARGS)
