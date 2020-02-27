@@ -124,6 +124,9 @@ class RadioRAControllerBase(object):
         return False
 
     def zone_status(self, zone: int, system = SYSTEM1):
+        """
+        returns 0 if OFF, 1 if ON, and None if Unknown
+        """
         raise NotImplemented()
 
     def _handle_zone_status(self, zone, system, data):
