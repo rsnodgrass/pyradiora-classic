@@ -35,7 +35,13 @@ RS232_COMMANDS = {
     'power_on':          'BP,16,ON',
     'power_off':         'BP,17,OFF',
     'flash_on':          'SFM,16,ON',
-    'flass_off':         'SFM,17,OFF',
+    'flash_off':         'SFM,17,OFF',
+    'phantom_status':    'LMP',
+    'phantom_on':        'BP,{button},ON',      # button: 1-15
+    'phantom_off':       'BP,{button},OFF',     # button: 1-15
+    'phantom_raise':     'RAISE,{button},{system}', # button: 1-15
+    'phantom_lower':     'LOWER,{button},{system}', # button: 1-15
+    'stop_raise_lower':  'STOPRL',
     'switch_on':         'SSL,{zone},ON',       # SSL,<Zone Number>,<State>(,<Delay Time>){(,<System>)}
     'switch_off':        'SSL,{zone},OFF',
     'set_dimmer_level':  'SDL,{zone},{level}',  # SDL,<Zone Number>,<Dimmer Level>(,<Fade Time>){(,<System)}
@@ -107,6 +113,9 @@ class RadioRAControllerBase(object):
         raise NotImplemented()
 
     def set_dimmer_level(self, zone: int, level: int, system = SYSTEM1):
+        """
+        FROM LUTRON RS232 DOC: To control more than one zone, Lutron recommends using a Phantom Button because using Direct Zone Control Commands will result in slower and staggered system responses.
+        """
         raise NotImplemented()
 
     def update(self):
