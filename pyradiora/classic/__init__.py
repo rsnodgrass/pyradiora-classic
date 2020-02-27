@@ -86,9 +86,6 @@ class RadioRAControllerBase(object):
     def zones(self):
         return self._zones
 
-    def zone_status(self, zone: int, system = SYSTEM1):
-        raise NotImplemented()
-
     def switch_all_on(self):
         raise NotImplemented()
 
@@ -125,6 +122,21 @@ class RadioRAControllerBase(object):
 
     def update_zones(self, zone):
         return False
+
+    def zone_status(self, zone: int, system = SYSTEM1):
+        raise NotImplemented()
+
+    def _handle_zone_status(self, zone, system, data):
+        if system == SYSTEM2 and 'system' in data:
+            LOG.warning("The second system in bridged RadioRA Classic systems are not supported, ignoring!")
+            return None
+
+        if data['states']:
+            status = data['states'][zone]
+            if status == UNKNOWN_FLAG:
+                return None
+            else:
+                return int(status)
 
     @property
     def is_bridged(self):
@@ -221,16 +233,7 @@ def get_radiora_controller(tty: str):
         @synchronized
         def zone_status(self, zone: int, system = SYSTEM1):
             data = self.sendCommand('zone_map_inquiry')
-            if 'system' in data:
-                LOG.error("Bridged RadioRA Classic systems are not supported")
-                return None # unknown
-
-            if data['states']:
-                status = data['states'][zone]
-                if status == UNKNOWN_FLAG:
-                    return None
-                else:
-                    return status
+            return self._handle_zone_status(zone, system, data)
 
         @synchronized
         def switch_all_on(self):
@@ -296,16 +299,7 @@ async def get_async_radiora_controller(tty, loop):
         @locked_coroutine
         def zone_status(self, zone: int, system = SYSTEM1):
             data = self.sendCommand('zone_map_inquiry')
-            if 'system' in data:
-                LOG.error("Bridged RadioRA Classic systems are not supported")
-                return None # unknown
-
-            if data['states']:
-                status = data['states'][zone]
-                if status == UNKNOWN_FLAG:
-                    return None
-                else:
-                    return status
+            return self._handle_zone_status(zone, system, data)
 
         @locked_coroutine
         async def update(self):
