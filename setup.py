@@ -34,7 +34,7 @@ limitations under the License.
 
 setup(name='pyradiora_classic',
       version=VERSION,
-      description='Python API for RS232 communication to Lutron RadioRA Classic controllers',
+      description='Python API for RS232 control of Lutron RadioRA Classic lighting',
       url='https://github.com/rsnodgrass/pyradiora-classic',
       author='Ryan Snodgrass',
       author_email='rsnodgrass@gmail.com',
