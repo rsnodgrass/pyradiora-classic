@@ -152,15 +152,24 @@ class RadioRAControllerBase(object):
 
         results = response.split(',')
         command = results[0]
-        data['command'] = command
+        if not command:
+           LOG.error("RadioRA Classic response was empty")
+           return None
 
-        fields = RS232_RESPONSES[command].split(',')
+        data['command'] = command
+        pattern = RS232_RESPONSES.get(command)
+        if pattern is None:
+            LOG.error("Could not find RS232 response pattern for command {command}, ignoring")
+            return None
+
+        # convert RS232 response into dictionary based on the protocol pattern
+        fields = pattern.split(',')
         for i in range(len(fields)):
             if i > 0 and i < len(results):
                 field = fields[i].lstrip('{').rstrip('}')
                 data[field] = results[i].rstrip(' ')
 
-        LOG.warning(f"Received {data}")
+        LOG.warning(f"Received: {data}")
         return data
 
 def get_radiora_controller(tty: str):
