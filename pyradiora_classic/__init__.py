@@ -426,6 +426,8 @@ async def get_async_radiora_controller(tty, loop):
             asyncio.ensure_future(self.q.put(data), loop=self._loop)
 
         async def read(self, request: bytes, skip=0):
+            result = bytearray()
+
             # read response
             try:
                 while True:
@@ -439,7 +441,6 @@ async def get_async_radiora_controller(tty, loop):
 
         async def send(self, request: bytes, skip=0):
             await self._connected.wait()
-            result = bytearray()
 
             # Only one transaction at a time
             with (await self._lock):
