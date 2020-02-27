@@ -84,6 +84,10 @@ class RadioRAControllerBase(object):
         self._tty = tty
         self._cached_zone_status = None
 
+    def sendCommand(self, command: str, args = {}):
+        """Send raw RS232 command to the RadioRA Classic device"""
+        raise NotImplemented()
+
     def switch_all_on(self):
         raise NotImplemented()
 
@@ -110,6 +114,10 @@ class RadioRAControllerBase(object):
         raise NotImplemented()
 
     def zone_status(self) -> dict:
+        # NOTE: ZMP always returns state for all 32 zones, PLUS if it is a bridged system
+        # it will return two sets, with ",S1" and ",S2" at the end of the result
+        # this does not support bridged systems currently
+        #self._zone_status = result # FIXME
         raise NotImplemented()
 
     def _handle_zone_status(self, data) -> dict:
@@ -121,14 +129,6 @@ class RadioRAControllerBase(object):
 
     def restore_zone_status(self, status: dict):
         raise NotImplemented()
-
-    def _update_state(self):
-        """Update any cached state by querying the controller for its current status"""
-        # NOTE: ZMP always returns state for all 32 zones, PLUS if it is a bridged system
-        # it will return two sets, with ",S1" and ",S2" at the end of the result
-        # this does not support bridged systems currently
-        result = self.sendCommand('zone_status')
-        self._zone_status = result # FIXME
 
     def is_zone_on(self, zone: int, system = SYSTEM1):
         """
@@ -211,8 +211,6 @@ def get_radiora_controller(tty: str):
             self._port.write_timeout = TIMEOUT
             self._port.open()
 
-#            LOG.debug("RadioRA RS232 controller version = {}", self.sendCommand('version'))
-
         def _write(self, request):
             # clear
             self._port.reset_output_buffer()
@@ -239,6 +237,7 @@ def get_radiora_controller(tty: str):
             LOG.debug(f"Received: {ret}")
             return ret
 
+        @synchronized
         def sendCommand(self, command: str, args = {}):
             request = bytes(RS232_COMMANDS[command].format(**args), ENCODING) + EOL
             self._write(request)
@@ -387,7 +386,7 @@ async def get_async_radiora_controller(tty, loop):
                 data_s2 = self._parse_response(response)
                 data[SYSTEM2] = data_s2
 
-            self._handle_zone_status(data)
+            return self._handle_zone_status(data)
 
         @locked_coroutine
         async def update(self):
