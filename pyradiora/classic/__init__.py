@@ -27,6 +27,10 @@ MAX_COMMAND_LEN = 22
 
 ENCODING = 'ascii'
 
+ON_FLAG = '1'
+OFF_FLAG = '0'
+UNKNOWN_FLAG = 'X'
+
 RS232_COMMANDS = {
     'power_on':          'BP,16,ON',
     'power_off':         'BP,17,OFF',
@@ -75,14 +79,14 @@ class RadioRAControllerBase(object):
     """Base class for interacting with a RadioRA Classic RS232 controller"""
 
     def __init__(self, tty: str):
-        LOG.warn(f"Attemping to connect to RadioRA Classic RS232 bridge at {tty}")
+        LOG.debug(f"Connecting to RadioRA Classic RS232 bridge at {tty}")
         self._tty = tty
         self._zones = []
 
     def zones(self):
         return self._zones
 
-    def zone_status(self):
+    def zone_status(self, zone: int, system = SYSTEM1):
         raise NotImplemented()
 
     def switch_all_on(self):
@@ -129,7 +133,7 @@ class RadioRAControllerBase(object):
     def _parse_response(self, response: str):
         """Parse response from the RS232 bridge into a dictionary"""
         data = {}
-        LOG.warning(f"Parsing {response}")
+        LOG.debug(f"Parsing: {response}")
 
         results = response.split(',')
         command = results[0]
@@ -177,7 +181,7 @@ def get_radiora_controller(tty: str):
             self._port.reset_output_buffer()
             self._port.reset_input_buffer()
 
-            LOG.warning(f"Sending: {request}")
+            LOG.debug(f"Sending: {request}")
             self._port.write(request)
             self._port.flush()
             return
@@ -215,8 +219,18 @@ def get_radiora_controller(tty: str):
             # FIXME: iterate zones
 
         @synchronized
-        def zone_status(self):
-            self.sendCommand('zone_map_inquiry')
+        def zone_status(self, zone: int, system = SYSTEM1):
+            data = self.sendCommand('zone_map_inquiry')
+            if 'system' in data:
+                LOG.error("Bridged RadioRA Classic systems are not supported")
+                return None # unknown
+
+            if data['states']:
+                status = data['states'][zone]
+                if status == UNKNOWN_FLAG:
+                    return None
+                else:
+                    return status
 
         @synchronized
         def switch_all_on(self):
@@ -278,9 +292,21 @@ async def get_async_radiora_controller(tty, loop):
         def __init__(self, tty: str, protocol):
             super.__init__(tty)
             self._protocol = protocol
-
-#            LOG.debug("RadioRA RS232 controller version = {}", self.sendCommand('version'))
         
+        @locked_coroutine
+        def zone_status(self, zone: int, system = SYSTEM1):
+            data = self.sendCommand('zone_map_inquiry')
+            if 'system' in data:
+                LOG.error("Bridged RadioRA Classic systems are not supported")
+                return None # unknown
+
+            if data['states']:
+                status = data['states'][zone]
+                if status == UNKNOWN_FLAG:
+                    return None
+                else:
+                    return status
+
         @locked_coroutine
         async def update(self):
             return # FIXME
@@ -327,7 +353,7 @@ async def get_async_radiora_controller(tty, loop):
 
         @locked_coroutine
         async def sendCommand(self, command, args = {}):
-            request = RS232_COMMANDS[command].format(**args)
+            request = RS232_COMMANDS[command].format(**args) + EOL
             await self._protocol.send(request)
             response = await self._protocol.read()
             return self._parse_response(response)
