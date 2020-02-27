@@ -124,10 +124,13 @@ class RadioRAControllerBase(object):
         if 'system' in data:
             LOG.warning("The second system in bridged RadioRA Classic systems are not supported, ignoring!")
 
-        self._cached_zone_status = { SYSTEM1: data }
+        self._cached_zone_status = data
         return self._cached_zone_status
 
     def restore_zone_status(self, status: dict):
+        """Given the response from a zone_status call, this will restore the current
+        switch settings to the provided values (not including dimmer levels since Classic
+        does not support this)"""
         raise NotImplemented()
 
     def is_zone_on(self, zone: int, system = SYSTEM1):
