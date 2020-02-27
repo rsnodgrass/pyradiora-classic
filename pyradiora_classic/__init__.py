@@ -61,8 +61,8 @@ STATE_ON = 'ON'
 STATE_OFF = 'OFF'
 STATE_CHANGE = 'CHG'
 
-SYSTEM1 = 1
-SYSTEM2 = 2
+SYSTEM1 = 'S1'
+SYSTEM2 = 'S2'
 
 SERIAL_INIT_ARGS = {
     'baudrate':      BAUD_RATE,
@@ -282,6 +282,9 @@ def get_radiora_controller(tty: str):
         @synchronized
         def zone_status(self) -> dict:
             response = self.sendCommand('zone_map_inquiry')
+            if not response:
+                LOG.warning(f"Failed updating RadioRA Classic zone status from {self._tty}")
+                return None
 
             data = {}
             data[SYSTEM1] = response
@@ -292,7 +295,7 @@ def get_radiora_controller(tty: str):
                 data_s2 = self._parse_response(response)
                 data[SYSTEM2] = data_s2
 
-            self._handle_zone_status(data)
+            return self._handle_zone_status(data)
 
         @synchronized
         def update(self):
@@ -376,6 +379,9 @@ async def get_async_radiora_controller(tty, loop):
         @locked_coroutine
         async def zone_status(self) -> dict:
             response = await self.sendCommand('zone_map_inquiry')
+            if not response:
+                LOG.warning(f"Failed updating RadioRA Classic zone status from {self._tty}")
+                return None
 
             data = {}
             data[SYSTEM1] = response
