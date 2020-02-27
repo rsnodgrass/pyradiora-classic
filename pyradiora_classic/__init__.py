@@ -54,7 +54,7 @@ RS232_RESPONSES = {
     'LZC': 'LZC,{zone},{state},{system}',
     'ZMP': 'ZMP,{states},{system}',                           # ZMP,11001011001011001011001011001000,S1
     'MBP': 'MBP,{master_control},{button},{state},{system}',
-    '!':   '!'
+    '!':   '!'  # response to some commands
 }
 
 STATE_ON = 'ON'
