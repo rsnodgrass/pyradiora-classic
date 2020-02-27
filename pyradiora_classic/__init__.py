@@ -282,12 +282,12 @@ def get_radiora_controller(tty: str):
 
         @synchronized
         def zone_status(self) -> dict:
-            data = await self.sendCommand('zone_status')
+            data = self.sendCommand('zone_status')
             return self._handle_zone_status(data)
 
         @synchronized
         def update(self):
-            await self.zone_status()
+            self.zone_status() # force update of the zone status
             return
 
         @synchronized
