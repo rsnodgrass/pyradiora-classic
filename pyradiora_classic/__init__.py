@@ -38,7 +38,7 @@ RS232_COMMANDS = {
     'flass_off':         'SFM,17,OFF',
     'switch_on':         'SSL,{zone},ON',       # SSL,<Zone Number>,<State>(,<Delay Time>){(,<System>)}
     'switch_off':        'SSL,{zone},OFF',
-    'set_dimmer':        'SDL,{zone},{level}',  # SDL,<Zone Number>,<Dimmer Level>(,<Fade Time>){(,<System)}
+    'set_dimmer_level':  'SDL,{zone},{level}',  # SDL,<Zone Number>,<Dimmer Level>(,<Fade Time>){(,<System)}
     'zone_map':          'ZMP,{zone_states}',
     'zone_map_inquiry':  'ZMPI',
     'zone_status':       'ZSI',
@@ -106,7 +106,7 @@ class RadioRAControllerBase(object):
     def switch_off(self, zone: int, system = SYSTEM1):
         raise NotImplemented()
 
-    def set_dimmer_level(self, zone: int, system = SYSTEM1):
+    def set_dimmer_level(self, zone: int, level: int, system = SYSTEM1):
         raise NotImplemented()
 
     def update(self):
@@ -143,6 +143,10 @@ class RadioRAControllerBase(object):
     def _handle_is_zone_on(self, zone: int, system = SYSTEM1):
         if system == SYSTEM2:
             LOG.warning("The second system in bridged RadioRA Classic systems are not supported, ignoring!")
+            return None
+
+        if self._cached_zone_status is None:
+            LOG.warning(f"Have not loaded zone status yet, cannot determine if zone {zone} is on!")
             return None
 
         zone_data = self._cached_zone_status.get(system)
@@ -183,7 +187,7 @@ class RadioRAControllerBase(object):
                 field = fields[i].lstrip('{').rstrip('}')
                 data[field] = results[i].rstrip(' ')
 
-        LOG.warning(f"Parsed response: {data}")
+        LOG.debug(f"Parsed response: {data}")
         return data
 
 
