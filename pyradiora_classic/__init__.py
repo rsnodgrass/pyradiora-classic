@@ -351,7 +351,7 @@ async def get_async_radiora_controller(tty, loop):
         Asynch version of RadioRA Classic control interface
         """
         def __init__(self, tty: str, protocol):
-            super.__init__(tty)
+            super().__init__(tty)
             self._protocol = protocol
         
         @locked_coroutine
