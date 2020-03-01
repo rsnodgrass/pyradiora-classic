@@ -324,7 +324,11 @@ def get_radiora_controller(tty: str):
                 self.update()
             return self._handle_is_zone_on(zone, system)
 
+    LOG.debug(f"Getting synchronous RadioRA controller for tty {tty}")
     return RadioRAControllerSync(tty)
+
+
+####
 
 async def get_async_radiora_controller(tty, loop):
     """Get asynchronous RadioRA Classic controller
@@ -470,6 +474,7 @@ async def get_async_radiora_controller(tty, loop):
                 return await self.read(request)
 
 
+    LOG.debug(f"Getting asynchronous RadioRA controller for tty {tty}")
     factory = functools.partial(RadioRAProtocolAsync, loop)
     _, protocol = await create_serial_connection(loop, factory, tty, **SERIAL_INIT_ARGS)
     return RadioRAControllerAsync(tty, protocol)
