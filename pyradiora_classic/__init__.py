@@ -335,7 +335,7 @@ async def get_async_radiora_controller(tty, loop):
     :param tty: serial port, i.e. '/dev/ttyUSB0'
     :param loop: event loop
     """
-    from serial_asyncio import create_serial_connection
+    import serial_asyncio
 
     lock = asyncio.Lock()
 
@@ -476,5 +476,5 @@ async def get_async_radiora_controller(tty, loop):
 
     LOG.debug(f"Getting asynchronous RadioRA controller for tty {tty}")
     factory = functools.partial(RadioRAProtocolAsync, loop)
-    _, protocol = await create_serial_connection(loop, factory, tty, **SERIAL_INIT_ARGS)
+    _, protocol = await serial_asyncio.create_serial_connection(loop, factory, tty, **SERIAL_INIT_ARGS)
     return RadioRAControllerAsync(tty, protocol)
